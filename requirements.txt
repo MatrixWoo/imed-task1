@@ -1,0 +1,7 @@
+numpy
+opencv-python
+torch
+git+https://github.com/cvg/LightGlue.git
+scipy
+tqdm
+matplotlib
