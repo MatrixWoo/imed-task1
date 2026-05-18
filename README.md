@@ -89,7 +89,7 @@ Optional JSON export: `--json-out results.json`
 
 ### Example baseline results (train split)
 
-Cross-camera ALIKED + LightGlue + essential matrix baseline on **65** `train/` sequences (Horn Sim(3) alignment, same metrics as above):
+Cross-camera ALIKED + LightGlue + essential matrix baseline on **61** `train/` sequences (Horn Sim(3) alignment, same metrics as above):
 
 | Metric | Value |
 |--------|------:|
