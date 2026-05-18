@@ -1,5 +1,9 @@
 # iMED Pose Estimation — Submission Template
 
+This repository supports the iMED 2026 challenge subtask on pose estimation, part of EndoVis 2026 at MICCAI 2026 (Strasbourg, France).
+
+[[Challenge Website](https://imed-challenge.github.io/)] [[Participate](https://www.synapse.org/Synapse:syn74277461)] [[Parent Challenge Hub](https://opencas.dkfz.de/endovis/challenges/2026/)]
+
 This template builds a Docker image that the iMED challenge evaluator can run
 against held-out test sequences. It ships the cross-camera [ALIKED](https://github.com/Shiaoming/ALIKED) + [LightGlue](https://github.com/cvg/lightglue) +
 essential-matrix baseline. You can replace `predict.py` and dependencies with

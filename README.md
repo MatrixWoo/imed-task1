@@ -1,5 +1,9 @@
 # iMED-PE baseline
 
+This repository supports the iMED 2026 challenge subtask on pose estimation, part of EndoVis 2026 at MICCAI 2026 (Strasbourg, France).
+
+[[Challenge Website](https://imed-challenge.github.io/)] [[Participate](https://www.synapse.org/Synapse:syn74277461)] [[Parent Challenge Hub](https://opencas.dkfz.de/endovis/challenges/2026/)]
+
 <p align="center"><em>Example sequences with pose overlays</em></p>
 <p align="center">
   <img src="assets/session_002_pig_intestine_zoom_in_trajectory_overlay.gif" width="32%" alt="session_002 pig intestine zoom in" />
