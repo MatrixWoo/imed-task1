@@ -1,7 +1,7 @@
 # iMED Pose Estimation — Submission Template
 
 This template builds a Docker image that the iMED challenge evaluator can run
-against held-out test sequences. It ships the cross-camera ALIKED + LightGlue +
+against held-out test sequences. It ships the cross-camera [ALIKED](https://github.com/Shiaoming/ALIKED) + [LightGlue](https://github.com/cvg/lightglue) +
 essential-matrix baseline. You can replace `predict.py` and dependencies with
 your own method.
 
@@ -145,6 +145,34 @@ Aggregate score is the mean over all test sequences.
 - **Timeout** — your method took >10 min. The matcher is the usual bottleneck;
   reduce keypoint count or skip frames.
 - **CUDA OOM** — drop batch size to 1 or use a smaller backbone.
+
+## References
+
+Baseline feature extraction and matching:
+
+```bibtex
+@article{Zhao2023ALIKED,
+    title = {ALIKED: A Lighter Keypoint and Descriptor Extraction Network via Deformable Transformation},
+    url = {https://arxiv.org/pdf/2304.03608.pdf},
+    doi = {10.1109/TIM.2023.3271000},
+    journal = {IEEE Transactions on Instrumentation & Measurement},
+    author = {Zhao, Xiaoming and Wu, Xingming and Chen, Weihai and Chen, Peter C. Y. and Xu, Qingsong and Li, Zhengguo},
+    year = {2023},
+    volume = {72},
+    pages = {1-16},
+}
+```
+
+```bibtex
+@inproceedings{lindenberger2023lightglue,
+  author    = {Philipp Lindenberger and
+               Paul-Edouard Sarlin and
+               Marc Pollefeys},
+  title     = {{LightGlue: Local Feature Matching at Light Speed}},
+  booktitle = {ICCV},
+  year      = {2023}
+}
+```
 
 ## Need help?
 

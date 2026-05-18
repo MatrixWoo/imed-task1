@@ -7,7 +7,7 @@
   <img src="assets/session_007_scene_3_zoom_in_trajectory_overlay.gif" width="32%" alt="session_007 scene 3 zoom in" />
 </p>
 
-Minimal baseline for iMED-PE trajectory estimation using ALIKED + LightGlue + essential matrix.
+Minimal baseline for iMED-PE trajectory estimation using [ALIKED](https://github.com/Shiaoming/ALIKED) + [LightGlue](https://github.com/cvg/lightglue) + essential matrix.
 
 ## Dataset splits
 
@@ -118,4 +118,32 @@ endoscope1/L/frame_XXXXXX.png
 endoscope1/R/frame_XXXXXX.png
 endoscope2/L/frame_XXXXXX.png
 endoscope2/R/frame_XXXXXX.png
+```
+
+## References
+
+Baseline feature extraction and matching:
+
+```bibtex
+@article{Zhao2023ALIKED,
+    title = {ALIKED: A Lighter Keypoint and Descriptor Extraction Network via Deformable Transformation},
+    url = {https://arxiv.org/pdf/2304.03608.pdf},
+    doi = {10.1109/TIM.2023.3271000},
+    journal = {IEEE Transactions on Instrumentation & Measurement},
+    author = {Zhao, Xiaoming and Wu, Xingming and Chen, Weihai and Chen, Peter C. Y. and Xu, Qingsong and Li, Zhengguo},
+    year = {2023},
+    volume = {72},
+    pages = {1-16},
+}
+```
+
+```bibtex
+@inproceedings{lindenberger2023lightglue,
+  author    = {Philipp Lindenberger and
+               Paul-Edouard Sarlin and
+               Marc Pollefeys},
+  title     = {{LightGlue: Local Feature Matching at Light Speed}},
+  booktitle = {ICCV},
+  year      = {2023}
+}
 ```
