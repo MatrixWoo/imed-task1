@@ -59,6 +59,11 @@ def main() -> None:
         args.json_out.write_text(json.dumps(payload, indent=2))
         print(f"Wrote JSON results to: {args.json_out}")
 
+    if args.json_out is not None:
+        args.json_out.parent.mkdir(parents=True, exist_ok=True)
+        args.json_out.write_text(json.dumps({"per_sequence": per_seq, "aggregate": aggregate}, indent=2))
+        print(f"Wrote metrics to: {args.json_out}")
+
 
 if __name__ == "__main__":
     main()
