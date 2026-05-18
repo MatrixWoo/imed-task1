@@ -52,6 +52,18 @@ Outputs:
 - `<pred-root>/train/<sequence_name>/pose.txt`
 - `<pred-root>/test/<sequence_name>/pose.txt`
 
+## Docker
+
+From repo root (build needs network; run does not):
+
+```bash
+docker build -t imedpe:dev .
+docker run --rm --gpus all --network=none --memory=20g \
+  -v <data-root>/train:/input:ro -v /tmp/out:/output imedpe:dev
+```
+
+Participant submission image: see [`imedpe_submission/README.md`](imedpe_submission/README.md).
+
 ## Evaluate
 
 We use the same metrics scripts as [CLiMB](https://www.synapse.org/Synapse:syn74370700/wiki/639986) for EndoVIS consistency. Huge thanks to the CLiMB team! 

@@ -14,30 +14,40 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -sf /usr/bin/python3.10 /usr/local/bin/python3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Pin numpy globally to avoid scipy/opencv ABI breakage from transitive deps.
 RUN echo "numpy==1.26.4" > /etc/pip-constraints.txt
 ENV PIP_CONSTRAINT=/etc/pip-constraints.txt
 
 RUN python -m pip install --no-cache-dir --upgrade \
         pip==24.0 setuptools==69.5.1 wheel==0.43.0
 
-# Torch (cu118 wheels) -- matches the evaluation host.
 RUN python -m pip install --no-cache-dir \
         torch==2.1.2+cu118 torchvision==0.16.2+cu118 \
         --index-url https://download.pytorch.org/whl/cu118
 
+RUN python -m pip install --no-cache-dir \
+        numpy==1.26.4 \
+        scipy==1.11.4 \
+        opencv-python-headless==4.9.0.80 \
+        tqdm==4.66.2
+
+RUN git clone --depth 1 https://github.com/cvg/LightGlue.git /tmp/LightGlue \
+    && python -m pip install --no-cache-dir /tmp/LightGlue \
+    && python -m pip show lightglue \
+    && python -c "import numpy; print('numpy version after lightglue:', numpy.__version__)" \
+    && rm -rf /tmp/LightGlue
+
+# Pre-cache model weights so runtime can run with --network=none.
+RUN python -c "from lightglue import ALIKED, LightGlue; \
+ALIKED(max_num_keypoints=2048).eval(); \
+LightGlue(features='aliked').eval(); \
+print('Weights cached.')"
+
 WORKDIR /app
-COPY requirements.txt /app/requirements.txt
-RUN python -m pip install --no-cache-dir -r /app/requirements.txt
-
-# IMPORTANT: any model weights your method needs must be downloaded here at
-# build time. The evaluation container runs with --network=none.
-# Example:
-#   RUN python -c "from your_package import YourModel; YourModel().eval()"
-
+COPY src /app/src
 COPY predict.py /app/predict.py
 
-ENV INPUT_DIR=/input \
+ENV PYTHONPATH=/app/src \
+    INPUT_DIR=/input \
     OUTPUT_DIR=/output
 
 ENTRYPOINT ["python", "/app/predict.py"]

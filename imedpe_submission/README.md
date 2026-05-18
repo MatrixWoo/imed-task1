@@ -1,15 +1,23 @@
 # iMED Pose Estimation — Submission Template
 
 This template builds a Docker image that the iMED challenge evaluator can run
-against held-out test sequences. Fill in `predict.py`, build, push to Synapse,
-submit.
+against held-out test sequences. It ships the cross-camera ALIKED + LightGlue +
+essential-matrix baseline. You can replace `predict.py` and dependencies with
+your own method.
+
+## Run Docker
+
+```bash
+docker build -t my-pose-submission:dev .
+./scripts/local_test.sh my-pose-submission:dev /path/to/train /tmp/out
+```
 
 ## Quick start
 
 1. **Clone this repo** and copy/move it to your project directory.
-2. **Edit `requirements.txt`** — add the Python deps your method needs.
-3. **Edit `predict.py`** — replace the `predict_sequence` stub with your method.
-4. **Build and self-test** against the train split:
+2. **Edit `requirements.txt`** — add the Python deps your method needs (if any).
+3. **Edit `predict.py`** — replace the baseline with your method, or keep it as-is.
+4. **Build and self-test** against the train split (build requires network; eval does not):
    ```bash
    docker build -t my-pose-submission:dev .
    ./scripts/local_test.sh my-pose-submission:dev \
@@ -17,6 +25,13 @@ submit.
        /tmp/my_test_output
    ```
 5. **Submit to Synapse** (see "Submission" below).
+
+## Pose convention
+
+Ground-truth `pose.txt` (not available at evaluation) stores **endoscope2/L
+relative to endoscope1/L** as frame-to-initial transforms: frame 0 is identity,
+subsequent frames are same-time cross-camera relative pose. The shipped baseline
+matches `endoscope1/L` and `endoscope2/L` at each frame index.
 
 ## I/O contract
 
@@ -70,15 +85,11 @@ One row per frame, whitespace-separated:
 <frame_idx> <tx> <ty> <tz> <qx> <qy> <qz> <qw>
 ```
 
-- **Anchor:** the first frame in `endoscope2/L` is the world origin. Its row
-  must be `(t=0,0,0  q=0,0,0,1)`.
-- **Pose convention:** world-from-camera. The 6-DoF pose places the camera
-  in the world frame defined by frame 0.
+- **Anchor:** the first frame index in `endoscope2/L` must be `(t=0,0,0  q=0,0,0,1)`.
+- **Pose convention:** endoscope2/L relative to endoscope1/L (same-time cross-camera).
 - **Quaternion convention:** `(qx, qy, qz, qw)` — scipy `Rotation.as_quat()`
   default. Unit length.
-- **Scale:** translation is **scale-ambiguous**. Scoring uses Sim(3) Umeyama
-  alignment, so the absolute scale of your translations doesn't matter — only
-  the trajectory shape.
+- **Scale:** translation is **scale-ambiguous**. Scoring uses Sim(3) alignment.
 - **Failed registrations:** write `nan` for every numeric field of that frame.
 
 ## Runtime constraints
@@ -92,19 +103,17 @@ One row per frame, whitespace-separated:
 | Network | **disabled** (`--network=none`) |
 | Filesystem | read-only `/input`, writable `/output`, nothing else persists |
 
-### Network is disabled
+### Network is disabled at runtime
 
-Your container will not have internet access at runtime. **Bake any model
-weights into the image at build time** with a `RUN python -c "..."` step in
-the Dockerfile, or `COPY` the weight files in. The most common first-submission
-failure is a method that tries to download from HuggingFace or `torch.hub` at
-runtime.
+`docker build` needs network to install Torch and LightGlue and download weights.
+At evaluation, the container has **no internet**. Weights are baked in via the
+`RUN python -c "..."` step in the Dockerfile.
 
 ## Scoring
 
 For each sequence, the evaluator computes:
 
-- **ATE RMSE** (mm) after Sim(3) Umeyama alignment of your trajectory to GT
+- **ATE RMSE** (mm) after Sim(3) alignment of your trajectory to GT
 - **% registered** (rows with finite values / total GT frames)
 
 Aggregate score is the mean over all test sequences.
