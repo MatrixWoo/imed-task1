@@ -2,9 +2,9 @@
 
 <p align="center"><em>Example sequences with pose overlays</em></p>
 <p align="center">
-  <video src="assets/session_002_pig_intestine_zoom_in_trajectory_overlay.mp4" width="32%" autoplay loop muted playsinline></video>
-  <video src="assets/session_004_scene_2_circular_trajectory_overlay.mp4" width="32%" autoplay loop muted playsinline></video>
-  <video src="assets/session_007_scene_3_zoom_in_trajectory_overlay.mp4" width="32%" autoplay loop muted playsinline></video>
+  <video src="assets/session_002_pig_intestine_zoom_in_trajectory_overlay.gif" width="32%" autoplay loop muted playsinline></video>
+  <video src="assets/session_004_scene_2_circular_trajectory_overlay.gif" width="32%" autoplay loop muted playsinline></video>
+  <video src="assets/session_007_scene_3_zoom_in_trajectory_overlay.gif" width="32%" autoplay loop muted playsinline></video>
 </p>
 
 Minimal baseline for iMED-PE trajectory estimation using ALIKED + LightGlue + essential matrix.
