@@ -11,6 +11,11 @@ from .io_pose import PoseRow, read_pose_txt
 
 @dataclass
 class SequenceData:
+    """One iMED-PE sequence.
+
+    ``gt_rows`` holds endoscope2/L relative to endoscope1/L as frame-to-initial
+    poses (T_rel(t) = T_0^{-1} T(t)); the first frame is identity.
+    """
     sequence_name: str
     frame_ids: list[int]
     gt_rows: list[PoseRow]

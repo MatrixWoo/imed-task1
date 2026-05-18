@@ -38,24 +38,52 @@ class ALikeLightGlueMatcher:
         return kpts0, kpts1
 
 
+def _normalize_points(pts: np.ndarray, K: np.ndarray) -> np.ndarray:
+    pts = np.asarray(pts, dtype=np.float64).reshape(-1, 1, 2)
+    normalized = cv2.undistortPoints(pts, K, None)
+    return normalized.reshape(-1, 2)
+
+
 def estimate_relative_pose(
     pts0: np.ndarray,
     pts1: np.ndarray,
-    K: np.ndarray,
-    ransac_thresh_px: float = 1.0,
+    K0: np.ndarray,
+    K1: np.ndarray | None = None,
+    ransac_thresh: float = 1e-3,
 ) -> RelativePoseResult:
-    E, mask = cv2.findEssentialMat(
-        pts0,
-        pts1,
-        cameraMatrix=K,
-        method=cv2.RANSAC,
-        prob=0.999,
-        threshold=ransac_thresh_px,
-    )
+    """Estimate relative pose from pts0 (camera 0) to pts1 (camera 1).
+
+    Uses a single intrinsics matrix when K1 is None; otherwise normalizes
+    with K0 and K1 for cross-camera essential matrix estimation.
+    """
+    if K1 is None:
+        E, mask = cv2.findEssentialMat(
+            pts0,
+            pts1,
+            cameraMatrix=K0,
+            method=cv2.RANSAC,
+            prob=0.999,
+            threshold=ransac_thresh if ransac_thresh > 0.01 else 1.0,
+        )
+        recover_K = K0
+        pts0_rec, pts1_rec = pts0, pts1
+    else:
+        pts0_n = _normalize_points(pts0, K0)
+        pts1_n = _normalize_points(pts1, K1)
+        E, mask = cv2.findEssentialMat(
+            pts0_n,
+            pts1_n,
+            method=cv2.RANSAC,
+            prob=0.999,
+            threshold=ransac_thresh,
+        )
+        recover_K = np.eye(3, dtype=np.float64)
+        pts0_rec, pts1_rec = pts0_n, pts1_n
+
     if E is None:
         raise RuntimeError("Essential matrix estimation failed.")
 
-    inliers, R, t, _ = cv2.recoverPose(E, pts0, pts1, K, mask=mask)
+    inliers, R, t, _ = cv2.recoverPose(E, pts0_rec, pts1_rec, recover_K, mask=mask)
     t = t.reshape(3)
     t = t / np.linalg.norm(t)
 

@@ -6,12 +6,11 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.spatial.transform import Rotation
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from imcpe.geometry import umeyama_alignment
+from imcpe.alignment import horn_align_sim3
 from imcpe.io_pose import read_pose_txt
 
 
@@ -19,39 +18,25 @@ def _valid_mask(xyz: np.ndarray) -> np.ndarray:
     return np.isfinite(xyz).all(axis=1)
 
 
-def _align_pred_to_gt(gt_xyz: np.ndarray, pred_xyz: np.ndarray) -> np.ndarray:
-    mask = _valid_mask(pred_xyz)
-    pred_valid = pred_xyz[mask]
-    gt_valid = gt_xyz[mask]
-    s, R, t = umeyama_alignment(pred_valid, gt_valid)
-    pred_aligned = pred_xyz.copy()
-    pred_aligned[mask] = (s * (R @ pred_valid.T)).T + t
-    return pred_aligned
-
-
-def _rows_to_relative_xyz(rows) -> np.ndarray:
-    Ts = []
-    for r in rows:
-        if not np.isfinite(r.t).all() or not np.isfinite(r.q_xyzw).all():
-            Ts.append(None)
-            continue
-        T = np.eye(4, dtype=np.float64)
-        T[:3, :3] = Rotation.from_quat(r.q_xyzw).as_matrix()
-        T[:3, 3] = r.t
-        Ts.append(T)
-
-    first_valid = next((T for T in Ts if T is not None), None)
-    if first_valid is None:
-        return np.full((len(rows), 3), np.nan, dtype=np.float64)
-
-    T0_inv = np.linalg.inv(first_valid)
+def _rows_to_xyz(rows) -> np.ndarray:
+    """Translations from pose.txt (already frame-to-initial-frame)."""
     xyz = np.full((len(rows), 3), np.nan, dtype=np.float64)
-    for i, T in enumerate(Ts):
-        if T is None:
-            continue
-        T_rel = T0_inv @ T
-        xyz[i] = T_rel[:3, 3]
+    for i, r in enumerate(rows):
+        if np.isfinite(r.t).all():
+            xyz[i] = r.t
     return xyz
+
+
+def _align_pred_to_gt(gt_xyz: np.ndarray, pred_xyz: np.ndarray) -> np.ndarray:
+    mask = _valid_mask(pred_xyz) & _valid_mask(gt_xyz)
+    if mask.sum() < 3:
+        return pred_xyz.copy()
+    model = pred_xyz[mask].T
+    data = gt_xyz[mask].T
+    rot, trans_gt, _, scale = horn_align_sim3(model, data)
+    pred_aligned = pred_xyz.copy()
+    pred_aligned[mask] = (scale * rot @ model + trans_gt).T
+    return pred_aligned
 
 
 def main() -> None:
@@ -67,8 +52,8 @@ def main() -> None:
     if len(gt_rows) != len(pred_rows):
         raise RuntimeError("GT and prediction pose lengths do not match.")
 
-    gt_xyz = _rows_to_relative_xyz(gt_rows)
-    pred_xyz = _rows_to_relative_xyz(pred_rows)
+    gt_xyz = _rows_to_xyz(gt_rows)
+    pred_xyz = _rows_to_xyz(pred_rows)
     pred_aligned = _align_pred_to_gt(gt_xyz, pred_xyz)
     valid = _valid_mask(pred_aligned)
 
@@ -80,7 +65,7 @@ def main() -> None:
         pred_aligned[valid, 0],
         pred_aligned[valid, 1],
         pred_aligned[valid, 2],
-        label="Pred (aligned)",
+        label="Pred (Horn aligned)",
         linewidth=2,
     )
 
