@@ -24,12 +24,26 @@ class ALikeLightGlueMatcher:
         self.device = torch.device(device)
         self.extractor = ALIKED(max_num_keypoints=2048).eval().to(self.device)
         self.matcher = LightGlue(features="aliked").eval().to(self.device)
+        # one-slot cache: consecutive calls on the same image reuse features
+        self._cache_path: Path | None = None
+        self._cache_feats = None
+
+    def extract(self, img_path: Path):
+        """Extract features with a one-slot cache (deterministic extraction)."""
+        if img_path == self._cache_path:
+            return self._cache_feats
+        image = load_image(img_path).to(self.device)
+        feats = self.extractor.extract(image)
+        self._cache_path = img_path
+        self._cache_feats = feats
+        return feats
 
     def match(self, img0_path: Path, img1_path: Path) -> tuple[np.ndarray, np.ndarray]:
-        image0 = load_image(img0_path).to(self.device)
-        image1 = load_image(img1_path).to(self.device)
-        feats0 = self.extractor.extract(image0)
-        feats1 = self.extractor.extract(image1)
+        feats0 = self.extract(img0_path)
+        feats1 = self.extract(img1_path)
+        return self.match_features(feats0, feats1)
+
+    def match_features(self, feats0, feats1) -> tuple[np.ndarray, np.ndarray]:
         matches01 = self.matcher({"image0": feats0, "image1": feats1})
         feats0, feats1, matches01 = [rbd(x) for x in [feats0, feats1, matches01]]
         matches = matches01["matches"]
