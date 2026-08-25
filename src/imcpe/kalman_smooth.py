@@ -139,9 +139,8 @@ def kalman_smooth_pose_sequence(
 
     out: list[PoseRow] = []
     for i, row in enumerate(rows):
-        if not valid[i]:
-            out.append(row)
-            continue
+        # valid frames: smoothed pose; invalid frames: RTS-interpolated
+        # prediction (keeps the output fully finite -> registered% = 100)
         R_i = Rotation.from_quat(qs_s[i]).as_matrix()
         R_new = R0T @ R_i
         t_new = R0T @ (ts_s[i] - t0)

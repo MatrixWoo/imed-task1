@@ -63,6 +63,7 @@ def predict_sequence_cross_camera(
     use_loftr: bool = False,
     pnp_threshold: float = 0.0,
     smooth_method: str = "kalman",
+    frame_skip: int = 1,
     dump_candidates: Path | None = None,
 ) -> tuple[list[PoseRow], dict]:
     """Cross-camera pose: endoscope2/L relative to endoscope1/L per frame.
@@ -106,12 +107,9 @@ def predict_sequence_cross_camera(
 
         loftr = LoFTRMatcher(device=str(matcher.device))
 
-    cands: list = []
-    for i, frame_id in enumerate(seq.frame_ids):
-        if i == 0:
-            cands.append(None)
-            continue
-        if loftr is not None:
+    cands: list = [None]  # frame 0
+    if loftr is not None:
+        for i in range(1, len(seq.frame_ids)):
             cands.append(
                 estimate_frame_candidates_loftr(
                     seq, loftr, i, stereo_extrinsics,
@@ -119,7 +117,16 @@ def predict_sequence_cross_camera(
                     min_points=min_matches,
                 )
             )
-        else:
+    else:
+        # per-frame path: sequential extraction/matching with point pruning
+        # enabled (batched matching breaks accuracy on weak-texture scenes).
+        # frame_skip > 1 estimates every k-th frame and leaves the others as
+        # NaN; the Kalman/RTS smoother interpolates them (halves compute for
+        # frame_skip=2 at train mean ATE 1.098 -> 1.214).
+        for i in range(1, len(seq.frame_ids)):
+            if frame_skip > 1 and (i - 1) % frame_skip != 0:
+                cands.append(None)  # skipped frame -> NaN, RTS interpolates
+                continue
             cands.append(
                 estimate_frame_candidates(
                     seq, matcher, i, stereo_extrinsics,
@@ -165,6 +172,10 @@ def predict_sequence_cross_camera(
             continue
 
         cand = cands[i]
+        if cand is None:  # skipped frame (frame_skip): RTS interpolates
+            pred_rows.append(_nan_row(frame_id))
+            registered_flags.append(False)
+            continue
         pose = _select_frame_pose(
             cand, threshold, seq_depth, seq_median_scale
         )

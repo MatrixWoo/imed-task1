@@ -44,19 +44,44 @@ def estimate_frame_candidates(
     e2_stereo_extrinsics: tuple[np.ndarray, np.ndarray] | None = None,
     min_points: int = 8,
 ) -> FrameCandidates:
-    """Compute PnP and E candidates for frame i.
-
-    PnP needs the e1 stereo extrinsics; E works on the cross-camera pair
-    alone. When e2 stereo extrinsics are available, the PnP pose is also
-    scored against an independent e2-stereo reconstruction (cross_rate).
-    """
-    from .stereo_pnp import cross_check_pose_3d3d
-
-    r_st, t_st = stereo_extrinsics or (None, None)
-
+    """Per-frame wrapper: match the three view pairs, then CPU geometry."""
     feats_l = matcher.extract(seq.e1_l_images[i])
     feats_2 = matcher.extract(seq.e2_l_images[i])
     pts_cross_l, pts_cross_2 = matcher.match_features(feats_l, feats_2)
+
+    pts_e1_l = pts_e1_r = pts_e2_l = pts_e2_r = None
+    if stereo_extrinsics is not None:
+        feats_r = matcher.extract(seq.e1_r_images[i])
+        pts_e1_l, pts_e1_r = matcher.match_features(feats_l, feats_r)
+    if e2_stereo_extrinsics is not None:
+        feats_2r = matcher.extract(seq.e2_r_images[i])
+        pts_e2_l, pts_e2_r = matcher.match_features(feats_2, feats_2r)
+
+    return candidates_from_matches(
+        seq, i, stereo_extrinsics, e2_stereo_extrinsics,
+        pts_cross_l, pts_cross_2, pts_e1_l, pts_e1_r, pts_e2_l, pts_e2_r,
+        min_points=min_points,
+    )
+
+
+def candidates_from_matches(
+    seq: SequenceData,
+    i: int,
+    stereo_extrinsics: tuple[np.ndarray, np.ndarray] | None,
+    e2_stereo_extrinsics: tuple[np.ndarray, np.ndarray] | None,
+    pts_cross_l: np.ndarray | None,
+    pts_cross_2: np.ndarray | None,
+    pts_e1_l: np.ndarray | None,
+    pts_e1_r: np.ndarray | None,
+    pts_e2_l: np.ndarray | None,
+    pts_e2_r: np.ndarray | None,
+    min_points: int = 8,
+) -> FrameCandidates:
+    """CPU geometry: build PnP / refined / E candidates from precomputed
+    matches. Pure NumPy/OpenCV — safe to run after batched GPU matching."""
+    from .stereo_pnp import cross_check_pose_3d3d, refine_pose_3d3d
+
+    r_st, t_st = stereo_extrinsics or (None, None)
 
     pnp_pose = None
     e_pose = None
@@ -66,70 +91,67 @@ def estimate_frame_candidates(
     cross_scale = float("nan")
     refined_pose = None
 
+    has_cross = pts_cross_l is not None and pts_cross_l.shape[0] >= min_points
+
     # --- PnP candidate ---
-    if stereo_extrinsics is not None and pts_cross_l.shape[0] >= min_points:
-        feats_r = matcher.extract(seq.e1_r_images[i])
-        pts_st_l, pts_st_r = matcher.match_features(feats_l, feats_r)
-        if pts_st_l.shape[0] >= min_points:
-            X, valid = triangulate_points(
-                pts_st_l, pts_st_r, seq.k1_l, seq.k1_r, r_st, t_st
-            )
-            if valid.sum() >= min_points:
-                median_depth = float(np.median(X[valid, 2]))
-                matched, idx_cross = common_keypoint_mask(
-                    pts_st_l[valid], pts_cross_l
-                )
-                if matched.sum() >= min_points:
-                    try:
-                        pose = estimate_pose_pnp(
+    if (
+        stereo_extrinsics is not None
+        and has_cross
+        and pts_e1_l is not None
+        and pts_e1_l.shape[0] >= min_points
+    ):
+        X, valid = triangulate_points(
+            pts_e1_l, pts_e1_r, seq.k1_l, seq.k1_r, r_st, t_st
+        )
+        if valid.sum() >= min_points:
+            median_depth = float(np.median(X[valid, 2]))
+            matched, idx_cross = common_keypoint_mask(pts_e1_l[valid], pts_cross_l)
+            if matched.sum() >= min_points:
+                try:
+                    pose = estimate_pose_pnp(
+                        X[valid][matched],
+                        pts_cross_2[idx_cross[matched]],
+                        seq.k2_l,
+                    )
+                    pnp_pose = pose
+                    pnp_rate = pose.num_inliers / float(matched.sum())
+
+                    if (
+                        e2_stereo_extrinsics is not None
+                        and pts_e2_l is not None
+                        and pts_e2_l.shape[0] >= min_points
+                    ):
+                        r_e2, t_e2 = e2_stereo_extrinsics
+                        cross_rate, cross_scale, _ = cross_check_pose_3d3d(
+                            pose,
                             X[valid][matched],
                             pts_cross_2[idx_cross[matched]],
+                            pts_e2_l,
+                            pts_e2_r,
                             seq.k2_l,
+                            seq.k2_r,
+                            r_e2,
+                            t_e2,
                         )
-                        pnp_pose = pose
-                        pnp_rate = pose.num_inliers / float(matched.sum())
-
-                        # independent cross-check + 3D-3D refinement with
-                        # e2 stereo depth
-                        if e2_stereo_extrinsics is not None:
-                            from .stereo_pnp import refine_pose_3d3d
-
-                            r_e2, t_e2 = e2_stereo_extrinsics
-                            feats_2r = matcher.extract(seq.e2_r_images[i])
-                            pts_e2_l, pts_e2_r = matcher.match_features(
-                                feats_2, feats_2r
+                        try:
+                            refined_pose = refine_pose_3d3d(
+                                pose,
+                                X[valid][matched],
+                                pts_cross_2[idx_cross[matched]],
+                                pts_e2_l,
+                                pts_e2_r,
+                                seq.k2_l,
+                                seq.k2_r,
+                                r_e2,
+                                t_e2,
                             )
-                            if pts_e2_l.shape[0] >= min_points:
-                                cross_rate, cross_scale, _ = cross_check_pose_3d3d(
-                                    pose,
-                                    X[valid][matched],
-                                    pts_cross_2[idx_cross[matched]],
-                                    pts_e2_l,
-                                    pts_e2_r,
-                                    seq.k2_l,
-                                    seq.k2_r,
-                                    r_e2,
-                                    t_e2,
-                                )
-                                try:
-                                    refined_pose = refine_pose_3d3d(
-                                        pose,
-                                        X[valid][matched],
-                                        pts_cross_2[idx_cross[matched]],
-                                        pts_e2_l,
-                                        pts_e2_r,
-                                        seq.k2_l,
-                                        seq.k2_r,
-                                        r_e2,
-                                        t_e2,
-                                    )
-                                except RuntimeError:
-                                    refined_pose = None
-                    except RuntimeError:
-                        pnp_pose = None
+                        except RuntimeError:
+                            refined_pose = None
+                except RuntimeError:
+                    pnp_pose = None
 
     # --- E candidate ---
-    if pts_cross_l.shape[0] >= min_points:
+    if has_cross:
         try:
             e_pose = estimate_relative_pose(
                 pts_cross_l, pts_cross_2, seq.k1_l, seq.k2_l
