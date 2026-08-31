@@ -93,6 +93,10 @@ def main() -> None:
             f"  {seq.name}: "
             f"frames={stats['n_frames']} "
             f"registered={stats['registered_pct']:.2f}% "
+            f"stereo_e1={stats.get('stereo_e1')} "
+            f"stereo_e2={stats.get('stereo_e2')} "
+            f"pnp={stats.get('pnp_pct', 0):.0f}% "
+            f"refined={stats.get('refined_pct', 0):.0f}% "
             f"runtime={time.perf_counter() - seq_t0:.2f}s",
             flush=True,
         )

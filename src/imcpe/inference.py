@@ -117,6 +117,17 @@ def predict_sequence_cross_camera(
                     min_points=min_matches,
                 )
             )
+    elif stereo_extrinsics is None and e2_stereo_extrinsics is not None:
+        # e1 baseline broken but e2 usable: reverse-PnP fallback
+        from .frame_candidates import estimate_frame_candidates_reverse
+
+        for i in range(1, len(seq.frame_ids)):
+            cands.append(
+                estimate_frame_candidates_reverse(
+                    seq, matcher, i, e2_stereo_extrinsics,
+                    min_points=min_matches,
+                )
+            )
     else:
         # per-frame path: sequential extraction/matching with point pruning
         # enabled (batched matching breaks accuracy on weak-texture scenes).
@@ -203,9 +214,22 @@ def predict_sequence_cross_camera(
                 pred_rows, window=smooth_window, sigma=smooth_sigma
             )
 
+    # diagnostics: how often each candidate source was used
+    n_pnp = sum(
+        1 for c in cands
+        if c is not None and c.pnp_pose is not None
+    )
+    n_refined = sum(
+        1 for c in cands
+        if c is not None and c.refined_pose is not None
+    )
     stats = {
         "n_frames": len(seq.frame_ids),
         "registered_pct": 100.0 * float(np.mean(registered_flags)),
+        "stereo_e1": stereo_extrinsics is not None,
+        "stereo_e2": e2_stereo_extrinsics is not None,
+        "pnp_pct": 100.0 * n_pnp / max(1, len(cands) - 1),
+        "refined_pct": 100.0 * n_refined / max(1, len(cands) - 1),
     }
     return pred_rows, stats
 

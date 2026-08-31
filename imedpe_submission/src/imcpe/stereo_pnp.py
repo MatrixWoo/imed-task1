@@ -56,17 +56,17 @@ def estimate_stereo_extrinsics(
     for i in indices:
         try:
             pts_l, pts_r = matcher.match(l_images[i], r_images[i])
-            if pts_l.shape[0] < 8:
+            if pts_l.shape[0] < 6:
                 continue
             pose = estimate_relative_pose(pts_l, pts_r, k_l, k_r)
-            if pose.num_inliers < 8:
+            if pose.num_inliers < 6:
                 continue
             Rs.append(pose.r)
             ts.append(pose.t)
         except RuntimeError:
             continue
 
-    if len(Rs) < 3:
+    if len(Rs) < 2:
         return None
 
     Rs = np.stack(Rs)

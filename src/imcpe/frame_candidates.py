@@ -171,6 +171,82 @@ def candidates_from_matches(
     )
 
 
+def estimate_frame_candidates_reverse(
+    seq: SequenceData,
+    matcher: ALikeLightGlueMatcher,
+    i: int,
+    e2_stereo_extrinsics: tuple[np.ndarray, np.ndarray],
+    min_points: int = 8,
+) -> FrameCandidates:
+    """Fallback when the e1 stereo extrinsics are unavailable: triangulate
+    with the e2 stereo pair instead and solve the REVERSE PnP (3D in the e2_L
+    frame -> 2D in e1_L), then invert the pose to e2-in-e1. The scale is in
+    e2 baseline units; consistent within the sequence when e1 is broken
+    everywhere (which is exactly the case this fallback serves).
+    """
+    from .stereo_pnp import common_keypoint_mask, estimate_pose_pnp, triangulate_points
+
+    r_e2, t_e2 = e2_stereo_extrinsics
+
+    feats_l = matcher.extract(seq.e1_l_images[i])
+    feats_2 = matcher.extract(seq.e2_l_images[i])
+    pts_cross_l, pts_cross_2 = matcher.match_features(feats_l, feats_2)
+
+    pnp_pose = None
+    e_pose = None
+    median_depth: float | None = None
+
+    if pts_cross_l.shape[0] >= min_points:
+        feats_2r = matcher.extract(seq.e2_r_images[i])
+        pts_st2_l, pts_st2_r = matcher.match_features(feats_2, feats_2r)
+        if pts_st2_l.shape[0] >= min_points:
+            X2, valid = triangulate_points(
+                pts_st2_l, pts_st2_r, seq.k2_l, seq.k2_r, r_e2, t_e2
+            )
+            if valid.sum() >= min_points:
+                median_depth = float(np.median(X2[valid, 2]))
+                matched, idx_st = common_keypoint_mask(
+                    pts_cross_2, pts_st2_l[valid]
+                )
+                if matched.sum() >= min_points:
+                    try:
+                        pose_rev = estimate_pose_pnp(
+                            X2[valid][idx_st[matched]],
+                            pts_cross_l[matched],
+                            seq.k1_l,
+                        )
+                        # invert: pose_rev is e1-in-e2; we need e2-in-e1
+                        R_inv = pose_rev.r.T
+                        t_inv = -R_inv @ pose_rev.t
+                        pnp_pose = RelativePoseResult(
+                            r=R_inv,
+                            t=t_inv,
+                            num_matches=pose_rev.num_matches,
+                            num_inliers=pose_rev.num_inliers,
+                        )
+                    except RuntimeError:
+                        pnp_pose = None
+
+        try:
+            e_pose = estimate_relative_pose(
+                pts_cross_l, pts_cross_2, seq.k1_l, seq.k2_l
+            )
+        except RuntimeError:
+            e_pose = None
+
+    return FrameCandidates(
+        frame_idx=seq.frame_ids[i],
+        pnp_pose=pnp_pose,
+        e_pose=e_pose,
+        pnp_inlier_rate=(
+            pnp_pose.num_inliers / float(matched.sum())
+            if pnp_pose is not None and matched.sum() > 0
+            else 0.0
+        ),
+        median_depth=median_depth,
+    )
+
+
 def estimate_frame_candidates_loftr(
     seq: SequenceData,
     loftr,
