@@ -58,6 +58,14 @@ Official evaluation metrics (same scripts as the CLiMB baseline), train split (6
 | RPE δ=10 rot (deg) | 7.402 | **2.088** | 7.584 | **1.928** |
 | Registered frames | 100% | 100% | 100% | 100% |
 
+![Per-sequence ATE: baseline vs ours](figures/per_sequence_final.png)
+
+*Per-sequence mean ATE on both splits: the improvement is consistent across sequences, not driven by outliers.*
+
+![Representative trajectories](figures/trajectory_clean.png)
+
+*Representative trajectories after Horn Sim(3) alignment (three motion types: zoom-in, left-right, circular). Predicted trajectories track the ground truth closely at 0.44–0.72 mm ATE.*
+
 ## 4. Ablations
 
 | Component | Train mean ATE | Δ |
@@ -67,6 +75,8 @@ Official evaluation metrics (same scripts as the CLiMB baseline), train split (6
 | + Stereo PnP | 1.547 | -28.5% |
 | + 3D-3D refinement (Umeyama) | 1.271 | -41.2% |
 | + Kalman + RTS smoothing | **1.098** | **-49.2%** |
+
+![Four-stage ablation](figures/ablation_four_stage.png)
 
 **Scale-drift analysis.** The strongest evidence for the stereo design comes from zoom-in sequences, where per-frame scale fluctuation is most harmful: the worst sequence improves from 10.75 mm (E baseline) to 2.02 mm (PnP) to below 1 mm (refined).
 
